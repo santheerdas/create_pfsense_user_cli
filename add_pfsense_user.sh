@@ -12,10 +12,21 @@ if [ -z "$USER" ] || [ -z "$PASS" ]; then
   exit 1
 fi
 
-# Generate bcrypt hash of the password
+CONFIG="/conf/config.xml"
+BACKUP="/conf/config.xml.bak.$(date +%F_%H%M%S)"
+
+# Step 1: Backup config.xml
+cp "$CONFIG" "$BACKUP"
+if [ $? -ne 0 ]; then
+  echo "Backup failed. Aborting."
+  exit 1
+fi
+echo "Backup created: $BACKUP"
+
+# Step 2: Generate bcrypt hash of the password
 HASH=$(openssl passwd -bcrypt "$PASS")
 
-# Create a temporary XML snippet
+# Step 3: Create temporary XML snippet for new user
 TMPFILE=$(mktemp)
 /bin/cat > "$TMPFILE" <<EOF
 <user>
@@ -27,13 +38,14 @@ TMPFILE=$(mktemp)
 </user>
 EOF
 
-# Insert the user entry into config.xml (before </system>)
-sed -i "" "/<\/system>/e cat $TMPFILE" /conf/config.xml
+# Step 4: Insert new user into config.xml (before </system>)
+sed -i "" "/<\/system>/e cat $TMPFILE" "$CONFIG"
 
-# Clean up
+# Clean up temp file
 rm -f "$TMPFILE"
 
-# Reload pfSense config
+# Step 5: Reload pfSense config
 /etc/rc.reload_all
 
 echo "User '${USER}' created in pfSense with group '${GROUP}'"
+
